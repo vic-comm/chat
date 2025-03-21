@@ -1,0 +1,104 @@
+{% extends 'core/base.html' %}
+{% block title%}{{room.name}} | {% endblock %}
+{% block content %}
+<div class="p-10 lg:p-20 text-center">
+    <h1 class="text-3xl lg:text-6xl text-white">{{ room.name }}</h1>
+</div>
+
+<div class="lg:w-2/4 mx-4 my-3 lg:mx-auto p-4 bg-white rounded-xl">
+    <div class="chat-messages space-y-3" id="chat-messages">
+        {% for message in messages %}
+        <div class="p-4 bg-gray-200 rounded-xl">
+            <p class="font-semibold">{{ message.user.username }}</p>
+            {% if message.content %}
+                <p>{{ message.content }}</p>
+            {% endif %}
+            {% if message.file %}
+                <p><a href="{{ message.file.url }}" class="text-blue-500 underline" target="_blank">Download File</a></p>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<div class="lg:w-2/4 mx-4 lg:mx-auto p-4 bg-white rounded-xl">
+    <form id="chat-form" class="flex flex-col space-y-2">
+        <input type="text" name="content" placeholder="Your message..." class="flex-1 p-2 border rounded" id="chat-message-input">
+        <input type="file" id="chat-file-input" class="p-2 border rounded">
+        <button class="px-4 py-2 rounded-xl text-white bg-teal-600 hover:bg-teal-700" id="chat-message-submit">Send</button>
+    </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ room.slug|json_script:'json-roomname' }}
+{{ request.user.username|json_script:'json-username' }}
+
+<script>
+    const roomName = JSON.parse(document.getElementById('json-roomname').textContent);
+    const userName = JSON.parse(document.getElementById('json-username').textContent);
+    const chatSocket = new WebSocket(
+        'ws://' + window.location.host + '/ws/' + roomName + '/'
+    );
+
+    // Receive messages and display them in chat
+    chatSocket.onmessage = function(e) {
+        const data = JSON.parse(e.data);
+
+        if (data.message || data.file_url) {
+            let html = '<div class="p-4 bg-gray-200 rounded-xl">';
+            html += '<p class="font-semibold">' + data.username + '</p>';
+            
+            if (data.message) {
+                html += '<p>' + data.message + '</p>';
+            }
+
+            if (data.file_url) {
+                html += '<p><a href="' + data.file_url + '" class="text-blue-500 underline" target="_blank">Download File</a></p>';
+            }
+
+            html += '</div>';
+            document.querySelector('#chat-messages').innerHTML += html;
+        }
+    };
+
+    chatSocket.onclose = function(e) {
+        console.log('WebSocket closed');
+    };
+
+    document.querySelector('#chat-message-submit').onclick = function(e) {
+        e.preventDefault();
+        const messageInputDom = document.querySelector('#chat-message-input');
+        const fileInputDom = document.querySelector('#chat-file-input');
+        const message = messageInputDom.value;
+        const file = fileInputDom.files[0];
+
+        // If a file is selected, convert to Base64 and send
+        if (file) {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = function() {
+                const base64Data = reader.result.split(',')[1];  // Extract only the base64 part
+                chatSocket.send(JSON.stringify({
+                    'message': message,
+                    'username': userName,
+                    'room': roomName,
+                    'file': base64Data,
+                    'filename': file.name
+                }));
+            };
+        } else {
+            // Send only text message if no file is selected
+            chatSocket.send(JSON.stringify({
+                'message': message,
+                'username': userName,
+                'room': roomName
+            }));
+        }
+
+        messageInputDom.value = '';
+        fileInputDom.value = '';
+        return false;
+    };
+</script>
+{% endblock %}
