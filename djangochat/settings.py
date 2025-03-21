@@ -25,7 +25,7 @@ SECRET_KEY = "django-insecure-4r0phmsocag=hiozs&g123^$&5r9dfw^xy&-k!#ojpx8yt3#_^
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['127.0.0.1','localhost','https://chat-tp3v.onrender.com']
 
 
 # Application definition
